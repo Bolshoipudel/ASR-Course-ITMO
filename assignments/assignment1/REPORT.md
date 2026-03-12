@@ -273,6 +273,30 @@ Test Acc: 0.9636
 
 ---
 
+## Воспроизведение результатов
+
+```bash
+pip install torch torchaudio soundfile ptflops matplotlib
+```
+
+**Проверка LogMelFilterBanks (Part 1):**
+```bash
+cd assignments/assignment1
+python test_melbanks.py
+```
+
+**Обучение модели и эксперименты (Parts 2-4):**
+```bash
+cd assignments/assignment1
+python train.py
+```
+
+Скрипт `train.py` автоматически скачает датасет Google Speech Commands в `./data/`, проведет все эксперименты (n_mels и groups) и сохранит графики в PNG-файлы.
+
+Обучение проводилось на RTX 4070 Super. Полное время выполнения ~20-30 мин.
+
+---
+
 ## Общие выводы
 
 1. Реализация `LogMelFilterBanks` полностью совпадает с эталонной `torchaudio.MelSpectrogram`
