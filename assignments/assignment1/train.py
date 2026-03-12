@@ -86,6 +86,7 @@ def run_experiment(n_mels=80, groups=1, num_epochs=20):
 
     num_params = sum(p.numel() for p in model.parameters())
     train_losses = []
+    val_accs = []
     epoch_times = []
 
     for epoch in range(num_epochs):
@@ -118,6 +119,7 @@ def run_experiment(n_mels=80, groups=1, num_epochs=20):
                 correct += (predicted == labels).sum().item()
                 total += labels.size(0)
         val_acc = correct / total
+        val_accs.append(val_acc)
         print(f"  Epoch {epoch+1}/{num_epochs} | Loss: {train_loss:.4f} | Val Acc: {val_acc:.4f} | Time: {epoch_time:.2f}s")
 
     # Test
@@ -136,7 +138,7 @@ def run_experiment(n_mels=80, groups=1, num_epochs=20):
     return {
         "n_mels": n_mels, "groups": groups,
         "num_params": num_params, "test_acc": test_acc,
-        "train_losses": train_losses, "epoch_times": epoch_times
+        "train_losses": train_losses, "val_accs": val_accs, "epoch_times": epoch_times
     }
 
 print("Experiments: n_mels")
@@ -180,6 +182,24 @@ plt.xlabel("n_mels")
 plt.ylabel("Test Accuracy")
 plt.title("Test Accuracy vs n_mels")
 plt.savefig("acc_vs_nmels.png")
+plt.close()
+
+plt.figure()
+for r in results_mels:
+    plt.plot(r["val_accs"], label=f"n_mels={r['n_mels']}")
+plt.xlabel("Epoch")
+plt.ylabel("Validation Accuracy")
+plt.legend()
+plt.title("Validation Accuracy vs n_mels")
+plt.savefig("val_acc_vs_nmels.png")
+plt.close()
+
+plt.figure()
+plt.plot([r["groups"] for r in results_groups], [r["test_acc"] for r in results_groups], marker='o')
+plt.xlabel("Groups")
+plt.ylabel("Test Accuracy")
+plt.title("Test Accuracy vs Groups")
+plt.savefig("test_acc_vs_groups.png")
 plt.close()
 
 plt.figure()
