@@ -88,7 +88,6 @@ Sweep по alpha и beta на `data/librispeech_test_other/` (beam_width=5, 3-gr
 
 Лучшая конфигурация: **alpha=0.05, beta=0.5 → WER=10.98%, CER=3.73%**
 
-При малых alpha LM почти не влияет. При очень больших alpha (5.0) LM полностью доминирует и качество резко падает (WER до 51.75%). Акустическая модель и так хорошо работает на LibriSpeech (in-domain), поэтому оптимальный alpha очень небольшой
 
 ### Task 5. 3-gram vs 4-gram LM
 
