@@ -37,7 +37,7 @@ gzip -c /tmp/financial-3gram.arpa > lm/financial-3gram.arpa.gz
 
 Результаты на `data/librispeech_test_other/`:
 
-| Метрика | Наш результат | Reference |
+| Метрика | Мой результат | Reference |
 |---|---|---|
 | WER | 11.22% | ≈ 10.4% |
 | CER | 3.81% | ≈ 3.5% |
@@ -53,7 +53,7 @@ gzip -c /tmp/financial-3gram.arpa > lm/financial-3gram.arpa.gz
 | 5 | **11.05%** | **3.74%** |
 | 10 | 11.07% | 3.77% |
 
-Интересно, что при beam_width=5 получились наилучшие результаты. При beam_width=10 больше менее вероятных путей конкурируют с лучшими, из-за чего метрики чуть хуже. beam_width=1 (11.24%) почти совпадает с greedy (11.22%), что ожидаемо, т.к. beam search с beam_width=1 по сути эквивалентен greedy decoding
+Интересно, что при beam_width=5 получились наилучшие результаты. Видимо, при beam_width=10 больше менее вероятных путей, которые конкурируют с более вероятными, из-за чего метрики чуть хуже. При beam_width=1 WER=11.24%, почти совпадает с greedy (11.22%). Это ожидаемо, т.к. beam search с beam_width=1 по сути эквивалентен greedy decoding
 
 ### Task 3. Temperature Scaling
 
@@ -88,7 +88,7 @@ Sweep по alpha и beta на `data/librispeech_test_other/` (beam_width=5, 3-gr
 
 *Формат: WER / CER*
 
-Несколько конфигураций дают одинаковые метрики WER=10.98%: (alpha=0.01, beta=0.5), (alpha=0.05, beta=0.5), (alpha=0.10, beta=0.5) и (alpha=0.50, beta=1.0). Выбрана **alpha=0.05, beta=0.5** (CER=3.73%) как компромисс — достаточно малый alpha, чтобы скор от LM не доминировал
+Несколько конфигураций дают одинаковые метрики WER=10.98%: (alpha=0.01, beta=0.5), (alpha=0.05, beta=0.5), (alpha=0.10, beta=0.5) и (alpha=0.50, beta=1.0). Далее будет использоваться конфигурация **alpha=0.05, beta=0.5** (CER=3.73%). Выбрана в качестве компромисса — достаточно малый alpha, чтобы скор от LM не доминировал 
 
 
 ### Task 5. 3-gram vs 4-gram LM
