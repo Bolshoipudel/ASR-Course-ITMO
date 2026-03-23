@@ -4,7 +4,7 @@
 
 | Файл | Описание |
 |---|---|
-| `wav2vec2decoder.py` | Основной класс декодера с реализацией 4 методов: greedy, beam search, shallow fusion, LM rescoring |
+| `wav2vec2decoder.py` | Основной класс декодера 
 | `eval/eval_task2.py` | Sweep по beam_width на LibriSpeech |
 | `eval/eval_task3.py` | Sweep по температуре (greedy) на LibriSpeech |
 | `eval/eval_task4.py` | Sweep по alpha/beta (shallow fusion) на LibriSpeech |
