@@ -69,6 +69,12 @@ class Wav2Vec2Decoder:
         text = ''.join(self.vocab[i] for i in token_ids)
         return text.replace(self.word_delimiter, ' ').strip().lower()
 
+    def _get_lm_score(self, prefix):
+        text = self._ids_to_text(list(prefix))
+        if not text.strip():
+            return 0.0
+        return self.lm_model.score(text, bos=True, eos=False) * math.log(10)
+
     # -----------------------------------------------------------------------
     # Tasks 1–4: implement the methods below
     # -----------------------------------------------------------------------
@@ -83,8 +89,17 @@ class Wav2Vec2Decoder:
         Returns:
             str: Decoded transcript.
         """
-        # <YOUR CODE GOES HERE>
-        raise NotImplementedError
+        log_probs = torch.log_softmax(logits, dim=-1)
+        arg_maxes = torch.argmax(log_probs, dim=-1)
+        
+        tokens = [] 
+        for i, token_id in enumerate(arg_maxes):
+            if token_id != self.blank_token_id and (i == 0 or token_id != arg_maxes[i-1]):
+                tokens.append(token_id.item())
+        decoded_str = self._ids_to_text(tokens)
+        
+        return decoded_str
+
 
     def beam_search_decode(self, logits: torch.Tensor, return_beams: bool = False):
         """
@@ -103,10 +118,51 @@ class Wav2Vec2Decoder:
                 List[Tuple[List[int], float]] - list of (token_ids, log_prob)
                     tuples sorted best-first (if return_beams=True).
         """
-        # <YOUR CODE GOES HERE>
+        log_probs = torch.log_softmax(logits, dim=-1)
+
+        beams = {(): (0.0, float('-inf'))}
+
+        for t in range(log_probs.shape[0]):
+            new_beams = {}
+            for prefix, (pb, pnb) in beams.items():
+                total = _log_add(pb, pnb)
+                new_pb = total + log_probs[t, self.blank_token_id].item()
+
+                if prefix in new_beams:
+                    old_pb, old_pnb = new_beams[prefix]
+                    new_beams[prefix] = (_log_add(old_pb, new_pb), old_pnb)
+                else:
+                    new_beams[prefix] = (new_pb, float('-inf'))
+                for c in range(log_probs.shape[1]):
+                    if c == self.blank_token_id:
+                        continue
+                    lp = log_probs[t, c].item()
+                    last_token = prefix[-1] if prefix else None
+                    if c == last_token:
+                        new_pnb_c = pb + lp
+                        repeat_score = pnb + lp
+                        if prefix in new_beams:
+                            old_pb_r, old_pnb_r = new_beams[prefix]
+                            new_beams[prefix] = (old_pb_r, _log_add(old_pnb_r, repeat_score))
+                        else:
+                            new_beams[prefix] = (float('-inf'), repeat_score)
+                    else:
+                        new_pnb_c = total + lp
+                    new_prefix = prefix + (c,)
+                    if new_prefix in new_beams:
+                        old_pb2, old_pnb2 = new_beams[new_prefix]
+                        new_beams[new_prefix] = (old_pb2, _log_add(old_pnb2, new_pnb_c))
+                    else:
+                        new_beams[new_prefix] = (float('-inf'), new_pnb_c)
+            sorted_beams = sorted(new_beams.items(), key=lambda x: _log_add(x[1][0], x[1][1]), reverse=True)
+            beams = dict(sorted_beams[:self.beam_width])                
+        sorted_final = sorted(beams.items(), key=lambda x: _log_add(x[1][0], x[1][1]), reverse=True)
+
         if return_beams:
-            raise NotImplementedError
-        raise NotImplementedError
+            return [(list(prefix), _log_add(pb, pnb)) for prefix, (pb, pnb) in sorted_final]
+        
+        best_prefix = sorted_final[0][0]
+        return self._ids_to_text(list(best_prefix))
 
     def beam_search_with_lm(self, logits: torch.Tensor) -> str:
         """
@@ -122,8 +178,52 @@ class Wav2Vec2Decoder:
         """
         if not self.lm_model:
             raise ValueError("KenLM model required for LM shallow fusion")
-        # <YOUR CODE GOES HERE>
-        raise NotImplementedError
+        log_probs = torch.log_softmax(logits, dim=-1)
+
+        beams = {(): (0.0, float('-inf'))}
+
+        for t in range(log_probs.shape[0]):
+            new_beams = {}
+            for prefix, (pb, pnb) in beams.items():
+                total = _log_add(pb, pnb)
+                new_pb = total + log_probs[t, self.blank_token_id].item()
+
+                if prefix in new_beams:
+                    old_pb, old_pnb = new_beams[prefix]
+                    new_beams[prefix] = (_log_add(old_pb, new_pb), old_pnb)
+                else:
+                    new_beams[prefix] = (new_pb, float('-inf'))
+                for c in range(log_probs.shape[1]):
+                    if c == self.blank_token_id:
+                        continue
+                    lp = log_probs[t, c].item()
+                    last_token = prefix[-1] if prefix else None
+                    if c == last_token:
+                        new_pnb_c = pb + lp
+                        repeat_score = pnb + lp
+                        if prefix in new_beams:
+                            old_pb_r, old_pnb_r = new_beams[prefix]
+                            new_beams[prefix] = (old_pb_r, _log_add(old_pnb_r, repeat_score))
+                        else:
+                            new_beams[prefix] = (float('-inf'), repeat_score)
+                    else:
+                        new_pnb_c = total + lp
+                    new_prefix = prefix + (c,)
+                    if new_prefix in new_beams:
+                        old_pb2, old_pnb2 = new_beams[new_prefix]
+                        new_beams[new_prefix] = (old_pb2, _log_add(old_pnb2, new_pnb_c))
+                    else:
+                        new_beams[new_prefix] = (float('-inf'), new_pnb_c)
+            sorted_beams = sorted(new_beams.items(), key=lambda x:
+                _log_add(x[1][0], x[1][1]) + self.alpha * self._get_lm_score(x[0]) + self.beta * self._ids_to_text(list(x[0])).count(' '),
+                reverse=True)
+            beams = dict(sorted_beams[:self.beam_width])
+        sorted_final = sorted(beams.items(), key=lambda x:
+            _log_add(x[1][0], x[1][1]) + self.alpha * self._get_lm_score(x[0]) + self.beta * self._ids_to_text(list(x[0])).count(' '),
+            reverse=True)
+
+        best_prefix = sorted_final[0][0]
+        return self._ids_to_text(list(best_prefix))
 
     def lm_rescore(self, beams: List[Tuple[List[int], float]]) -> str:
         """
@@ -136,10 +236,20 @@ class Wav2Vec2Decoder:
         Returns:
             str: Best rescored transcript.
         """
+
         if not self.lm_model:
             raise ValueError("KenLM model required for LM rescoring")
-        # <YOUR CODE GOES HERE>
-        raise NotImplementedError
+        best_score = float('-inf')
+        best_text = ""
+        for token_ids, acoustic_score in beams:
+            text = self._ids_to_text(token_ids)
+            lm_score = self._get_lm_score(tuple(token_ids))
+            num_words = text.count(' ') + 1
+            score = acoustic_score + self.alpha * lm_score + self.beta * num_words
+            if score > best_score:
+                best_score = score
+                best_text = text
+        return best_text
 
     # -----------------------------------------------------------------------
     # Provided — do NOT modify
@@ -225,7 +335,7 @@ if __name__ == "__main__":
         ("examples/sample8.wav", "operating surplus is a non cap financial measure which is defined as fully in our press release"),
     ]
 
-    decoder = Wav2Vec2Decoder(lm_model_path=None)  # set lm_model_path for Tasks 4+
+    decoder = Wav2Vec2Decoder(lm_model_path="lm/3-gram.pruned.1e-7.arpa.gz", beam_width=10)  # set lm_model_path for Tasks 4+
 
     for audio_path, reference in test_samples:
         test(decoder, audio_path, reference)
